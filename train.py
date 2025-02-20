@@ -8,62 +8,60 @@ from torchvision import transforms
 
 import matplotlib.pyplot as plt
 import torch.optim as optim
-
+from utils.util import _save_checkpoint
 
 from base.base_model import UNet
 from dataloader import dataloaders
+
+import json
 
 def load_data():
     # load the dataset
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
-        root_dir = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
+        csv_file = config['dataloader']['args']['csv_dir'],
+        root_dir = config['dataloader']['args']['data_dir'],
         transform =  transforms.Compose([transforms.ToTensor()]))
 
-    num_train_samples = int(len(dataset) * args.TRAIN_SPLIT) + 1
-    num_val_samples = int(len(dataset) * (1 - args.TRAIN_SPLIT - args.TEST_SPLIT))
-    num_test_samples = int(len(dataset) * args.TEST_SPLIT)
+    num_train_samples = int(len(dataset) * 
+                            config['dataloader']['args']['train_split']) + 1
+    num_val_samples = int(len(dataset) * 
+                          config['dataloader']['args']['validation_split'])
+    num_test_samples = int(len(dataset) * 
+                           (1 - config['dataloader']['args']['train_split'] - 
+                            config['dataloader']['args']['validation_split']))
 
-    (train_data, val_data, test_data) = random_split(dataset, [num_train_samples, num_val_samples, num_test_samples],
+    (train_data, val_data, test_data) = random_split(
+        dataset, [num_train_samples, num_val_samples, num_test_samples],
                                                     generator=torch.Generator().manual_seed(42))
 
     print("[INFO] paired desmoke image dataset loaded...")
     return {"train":train_data, "val":val_data, "test": test_data}
 
-def arg_parse():
-
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-trs", "--TRAIN_SPLIT", type = float, required = True,
-                    help = "percentage of training samples")
-    ap.add_argument("-ts", "--TEST_SPLIT", type = float, required = True,
-                    help = "percentage of testing samples")
-    ap.add_argument("-lr", "--INIT_LR", type = float, required = True,
-                    help = "initial learning rate for training the model")
-    ap.add_argument("-bs", "--BATCH_SIZE", type = int, required = True,
-                    help = "batch size for the training")
-    ap.add_argument("-epcs", "--EPOCHS", type = int, required = True,
-                    help = "number of epochs to train the model")
-
-    # ap.add_argument("-m", "--model", type = str, required = True,
-    #                 help = "path to output trained model")
-    # ap.add_argument("-p", "--plot", type = str, required = True,
-    #                 help = "path to output loss/accuracy plot")
-    return ap.parse_args()
 
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("cuda available:", torch.cuda.is_available())
 
     model = UNet(in_channels=3, out_channels=3).to(device)
-    criterion = torch.nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr = 1e-3)
-
-    num_epochs = args.EPOCHS
+    if config['loss'] == "MSELoss":
+        criterion = torch.nn.MSELoss()
+    if config['optimizer']['type'] == "Adam":
+        optimizer = optim.Adam(
+            model.parameters(), lr = config['optimizer']['args']['lr'], 
+                           amsgrad = config['optimizer']['args']['amsgrad'])
+    if config['lr_scheduler']['used']:
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer, step_size = config['lr_scheduler']['args']['step_size'],
+                                              gamma = config['lr_scheduler']['args']['gamma'])
+    num_epochs = config['epochs']
 
     data = load_data()
-    train_loader = DataLoader(data["train"], batch_size = args.BATCH_SIZE, shuffle = True)
+    train_loader = DataLoader(
+        data["train"], batch_size = config['dataloader']['args']['batch_size'], 
+                              shuffle = config['dataloader']['args']['shuffle'])
+    total_loss = 0
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
@@ -78,16 +76,43 @@ def train():
             loss.backward()
             optimizer.step()
 
+            if config['lr_scheduler']['used']:
+                scheduler.step()
+
             epoch_loss += loss.item()
             # print(loss)
+        total_loss += epoch_loss
         print(f"Epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss / len(train_loader):.4f}")
 
-    return model
+    return model, optimizer, total_loss
 
 
 # Example usage:
 if __name__ == "__main__":
-    args = arg_parse()
+    args = argparse.ArgumentParser(description="ImageDesmoke")
+    args.add_argument('-c', '--CONFIG', default = None, type = str, required = True,
+                      help = 'config file path (default : None)')
+    args.add_argument('-r', '--RESUME', default = None, type = str,
+                      help = 'path to latest checkpoint (default : None)')
+    args.add_argument('-d', '--DEVICE', default = None, type = str,
+                      help = "indices of GPUs to enable (default : all)")
+    args = args.parse_args()
+
+    # ap.add_argument("-trs", "--TRAIN_SPLIT", type = float, required = True,
+    #                 help = "percentage of training samples")
+    # ap.add_argument("-ts", "--TEST_SPLIT", type = float, required = True,
+    #                 help = "percentage of testing samples")
+    # ap.add_argument("-lr", "--INIT_LR", type = float, required = True,
+    #                 help = "initial learning rate for training the model")
+    # ap.add_argument("-bs", "--BATCH_SIZE", type = int, required = True,
+    #                 help = "batch size for the training")
+    # ap.add_argument("-epcs", "--EPOCHS", type = int, required = True,
+    #                 help = "number of epochs to train the model")
+
+    # ap.add_argument("-m", "--model", type = str, required = True,
+    #                 help = "path to output trained model")
+    # ap.add_argument("-p", "--plot", type = str, required = True,
+    #                 help = "path to output loss/accuracy plot")
     
 
     # x = torch.randn((1, 3, 700, 350))  # Example input tensor
@@ -96,7 +121,12 @@ if __name__ == "__main__":
     # model = model.cuda()
     # summary(model, (3,700,350))
 
-    trained_model = train()
-    torch.save(trained_model.state_dict(), f"unet_model_{args.EPOCHS}_epochs.pth")
+    checkpoint_path = "C:\\Users\\ycy99\\Documents\\NJIT\\research\\projects\\ImageDesmoke\\saved\\models"
+    with open(args.CONFIG, 'r') as f:
+        config = json.load(f)
+    # print(config['dataloader']['args']['batch_size'])
+    trained_model, optimizer_used, total_loss = train()
+    _save_checkpoint(trained_model, optimizer_used, total_loss, config, checkpoint_path)
+    
 
 
