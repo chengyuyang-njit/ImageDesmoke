@@ -1,17 +1,9 @@
-import os
 import torch
+from torch.utils.data import Dataset
 import pandas as pd
-from skimage import io, transform
-import numpy as np
-import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-
-# Ignore warnings
-import warnings
-warnings.filterwarnings("ignore")
-
-plt.ion()   # interactive mode
+import pandas as pd
+import os
+from PIL import Image
 
 
 class PairedSmokeImageDataset(Dataset):
@@ -32,19 +24,21 @@ class PairedSmokeImageDataset(Dataset):
         smoked_image_name = os.path.join(self.root_dir,
                                     self.paired_images.iloc[idx, 0])
         
-        clear_image = io.imread(clear_image_name)
-        smoked_image = io.imread(smoked_image_name)
-
-        sample = {'clear_image': clear_image, 'smoked_image': smoked_image}
+        clear_image = Image.open(clear_image_name).convert("RGB")
+        smoked_image = Image.open(smoked_image_name).convert("RGB")
 
         if self.transform:
-            sample = self.transform(sample)
+            clear_image = self.transform(clear_image)
+            smoked_image = self.transform(smoked_image)
+
+        sample = {'clear_image': clear_image, 'smoked_image': smoked_image}
 
         return sample
 
     def __len__(self):
         # len(dataset)
         return len(self.paired_images)
+
 
 # paired_surgery_dataset = PairedSmokeImageDataset(
 #     csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
