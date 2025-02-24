@@ -17,13 +17,14 @@ def load_data():
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
-        root_dir = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
+        csv_file = '..\\..\\datasets\\DesmokeData-main\\images\\paired_images.csv',
+        root_dir = '..\\..\\datasets\\DesmokeData-main\\images\\dataset',
         transform =  transforms.Compose([transforms.ToTensor()]))
 
-    num_train_samples = int(len(dataset) * args.TRAIN_SPLIT) + 1
-    num_val_samples = int(len(dataset) * (1 - args.TRAIN_SPLIT - args.TEST_SPLIT))
-    num_test_samples = int(len(dataset) * args.TEST_SPLIT)
+    num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
+    num_val_samples = int(len(dataset) * config["dataloader"]["args"]["validation_split"])
+    num_test_samples = int(len(dataset) * (1 - config["dataloader"]["args"]["train_split"] - 
+                                          config["dataloader"]["args"]["validation_split"]))
 
     (train_data, val_data, test_data) = random_split(dataset, [num_train_samples, num_val_samples, num_test_samples],
                                                     generator=torch.Generator().manual_seed(42))
@@ -32,17 +33,6 @@ def load_data():
     return {"train":train_data, "val":val_data, "test": test_data}
 
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-trs", "--TRAIN_SPLIT", type = float, required = True,
-                    help = "percentage of training samples")
-    ap.add_argument("-ts", "--TEST_SPLIT", type = float, required = True,
-                    help = "percentage of testing samples")
-    ap.add_argument("-mp", "--MODEL_PATH", type = str, required = True,
-                    help = "the path to the model saved")
-    ap.add_argument("-bs", "--BATCH_SIZE", type = int, required = True,
-                    help = "batch size for the training")
-
-    return ap.parse_args()
 
 def visualize_sample(inputs, targets, outputs):
     inputs = inputs.cpu().numpy().transpose(1, 2, 0)
