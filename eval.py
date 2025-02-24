@@ -31,7 +31,6 @@ def load_data():
     print("[INFO] paired desmoke image dataset loaded...")
     return {"train":train_data, "val":val_data, "test": test_data}
 
-def arg_parse():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("-trs", "--TRAIN_SPLIT", type = float, required = True,
@@ -44,38 +43,6 @@ def arg_parse():
                     help = "batch size for the training")
 
     return ap.parse_args()
-
-if __name__ == "__main__":
-    args = argparse.ArgumentParser(description="ImageDesmoke")
-    args.add_argument('-ckp', '--CHECKPOINT', default = None, type = str, required = True,
-                      help = "path to the checkpoint file of the model that you want to evaluate")
-
-    args = args.parse_args()
-    ckp = torch.load(args.CHECKPOINT)
-
-    print(json.dumps(ckp["config"], indent = 4))
-    checkpoint_path = "C:\\Users\\ycy99\\Documents\\NJIT\\research\\projects\\ImageDesmoke\\saved\\models"
-    with open(args.CONFIG, 'r') as f:
-        config = json.load(f)
-    # print(config['dataloader']['args']['batch_size'])
-    trained_model, optimizer_used, total_loss = train()
-    _save_checkpoint(trained_model, optimizer_used, total_loss, config, checkpoint_path)
-    
-
-args = arg_parse()
-# Load model later with:
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = UNet(in_channels=3, out_channels=3).to(device)
-model.load_state_dict(torch.load(args.MODEL_PATH))
-model.eval()
-
-data = load_data()
-eval_loader = DataLoader(data["val"], batch_size = args.BATCH_SIZE, shuffle = True)
-# with torch.no_grad():
-#     for samples in eval_loader:
-#         input = samples["smoked_image"].to(device)
-#         target = samples["clear_image"].to(device)
-#         output = model(input)
 
 def visualize_sample(inputs, targets, outputs):
     inputs = inputs.cpu().numpy().transpose(1, 2, 0)
@@ -90,6 +57,35 @@ def visualize_sample(inputs, targets, outputs):
     ax[2].imshow(outputs)
     ax[2].set_title("Output")
     plt.show()
+
+if __name__ == "__main__":
+    args = argparse.ArgumentParser(description="ImageDesmoke")
+    args.add_argument('-ckp', '--CHECKPOINT', default = None, type = str, required = True,
+                      help = "path to the checkpoint file of the model that you want to evaluate")
+
+    args = args.parse_args()
+    ckp = torch.load(args.CHECKPOINT)
+
+
+    print(json.dumps(ckp["config"], indent = 4))
+    config = ckp["config"]
+    
+
+    # Load model later with:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = UNet(in_channels=3, out_channels=3).to(device)
+    model.load_state_dict(torch.load(args.CHECKPOINT))
+    model.eval()
+
+    data = load_data()
+    eval_loader = DataLoader(data["val"], batch_size = args.BATCH_SIZE, shuffle = True)
+# with torch.no_grad():
+#     for samples in eval_loader:
+#         input = samples["smoked_image"].to(device)
+#         target = samples["clear_image"].to(device)
+#         output = model(input)
+
+
 
 # Get a sample batch
 samples = next(iter(eval_loader))
