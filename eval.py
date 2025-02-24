@@ -10,6 +10,8 @@ import torch.optim as optim
 from base.base_model import UNet
 from dataloader import dataloaders
 
+import json
+
 def load_data():
     # load the dataset
     print("[INFO] loading the paired desmoke image dataset...")
@@ -43,7 +45,22 @@ def arg_parse():
 
     return ap.parse_args()
 
+if __name__ == "__main__":
+    args = argparse.ArgumentParser(description="ImageDesmoke")
+    args.add_argument('-ckp', '--CHECKPOINT', default = None, type = str, required = True,
+                      help = "path to the checkpoint file of the model that you want to evaluate")
 
+    args = args.parse_args()
+    ckp = torch.load(args.CHECKPOINT)
+
+    print(json.dumps(ckp["config"], indent = 4))
+    checkpoint_path = "C:\\Users\\ycy99\\Documents\\NJIT\\research\\projects\\ImageDesmoke\\saved\\models"
+    with open(args.CONFIG, 'r') as f:
+        config = json.load(f)
+    # print(config['dataloader']['args']['batch_size'])
+    trained_model, optimizer_used, total_loss = train()
+    _save_checkpoint(trained_model, optimizer_used, total_loss, config, checkpoint_path)
+    
 
 args = arg_parse()
 # Load model later with:
@@ -84,6 +101,5 @@ with torch.no_grad():
 # Visualize
 visualize_sample(input[0], target[0], output[0])
 
-# Hello World
-# token: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
-# Hello World gain
+
+
