@@ -100,22 +100,6 @@ if __name__ == "__main__":
 
     args = args.parse_args()
 
-    # ap.add_argument("-trs", "--TRAIN_SPLIT", type = float, required = True,
-    #                 help = "percentage of training samples")
-    # ap.add_argument("-ts", "--TEST_SPLIT", type = float, required = True,
-    #                 help = "percentage of testing samples")
-    # ap.add_argument("-lr", "--INIT_LR", type = float, required = True,
-    #                 help = "initial learning rate for training the model")
-    # ap.add_argument("-bs", "--BATCH_SIZE", type = int, required = True,
-    #                 help = "batch size for the training")
-    # ap.add_argument("-epcs", "--EPOCHS", type = int, required = True,
-    #                 help = "number of epochs to train the model")
-
-    # ap.add_argument("-m", "--model", type = str, required = True,
-    #                 help = "path to output trained model")
-    # ap.add_argument("-p", "--plot", type = str, required = True,
-    #                 help = "path to output loss/accuracy plot")
-    
 
     # x = torch.randn((1, 3, 700, 350))  # Example input tensor
     # preds = model(x)
@@ -123,7 +107,7 @@ if __name__ == "__main__":
     # model = model.cuda()
     # summary(model, (3,700,350))
 
-    checkpoint_path = "C:\\Users\\ycy99\\Documents\\NJIT\\research\\projects\\ImageDesmoke\\saved\\models"
+    checkpoint_path = "./saved/models"
     with open(args.CONFIG, 'r') as f:
         config = json.load(f)
     # print(config['dataloader']['args']['batch_size'])
