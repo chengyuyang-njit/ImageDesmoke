@@ -41,8 +41,8 @@ def load_data():
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
-        root_dir = '..\\..\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
+        csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
+        root_dir = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/dataset',
         transform = transforms.Compose([transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
@@ -128,7 +128,7 @@ if __name__ == "__main__":
             target = target[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             output = output[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             # wiener filter
-            filtered_image = wiener_filter(input)
+            filtered_image = wiener_filter(output)
             save_sample(input, target, output, filtered_image, filename)
 
             # print(target)
@@ -140,17 +140,17 @@ if __name__ == "__main__":
             psnr_value_ = psnr(target, filtered_image)
             print(f"PSNR: {psnr_value} dB, {psnr_value_} dB")
 
-            lab_image1 = color.rgb2lab(target)
-            lab_image2 = color.rgb2lab(output)
-            color_diff = deltaE_ciede2000(target, output)
-            print(f"CIEDE2000: {color_diff}")
+            # lab_image1 = color.rgb2lab(target)
+            # lab_image2 = color.rgb2lab(output)
+            # color_diff = deltaE_ciede2000(target, output)
+            # print(f"CIEDE2000: {color_diff}")
 
-            # Compute statistics
-            mean_diff = np.mean(color_diff)
-            std_diff = np.std(color_diff)
+            # # Compute statistics
+            # mean_diff = np.mean(color_diff)
+            # std_diff = np.std(color_diff)
 
-            print(f"Mean CIEDE2000 Color Difference: {mean_diff}")
-            print(f"Standard Deviation: {std_diff}")
+            # print(f"Mean CIEDE2000 Color Difference: {mean_diff}")
+            # print(f"Standard Deviation: {std_diff}")
 
 
             number += 1
