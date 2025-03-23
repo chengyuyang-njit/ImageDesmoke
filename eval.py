@@ -17,7 +17,7 @@ from skimage import color
 import scipy.signal
 
 
-def wiener_filter(image, kernel_size=5, noise_var = 0.1):
+def wiener_filter(image, kernel_size=5, noise_var = 0.1, noise_var = 0.1):
     """
     Apply Wiener filter to each channel of the image.
 
@@ -40,8 +40,8 @@ def load_data():
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
-        root_dir = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/dataset',
+        csv_file = 'C:\\Users\\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
+        root_dir = 'C:\\Users\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
         transform = transforms.Compose([transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
@@ -88,7 +88,7 @@ def save_sample(inputs, targets, outputs, filtered_image, filename):
     plt.savefig(filename)
     plt.close()
 
-def save_sample(inputs, targets, filtered_image, filename):
+def save_sample_(inputs, targets, filtered_image, filename):
     fig, ax = plt.subplots(1, 3, figsize = (16,3))
     ax[0].imshow(inputs)
     ax[0].set_title("Input")
