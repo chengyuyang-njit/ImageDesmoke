@@ -13,12 +13,11 @@ from dataloader import dataloaders
 import json
 import numpy as np
 from skimage.metrics import structural_similarity as ssim, peak_signal_noise_ratio as psnr
-from skimage.color import deltaE_ciede2000
 from skimage import color
 import scipy.signal
 
 
-def wiener_filter(image, kernel_size=5):
+def wiener_filter(image, kernel_size=5, noise_var = 0.1):
     """
     Apply Wiener filter to each channel of the image.
 
@@ -31,7 +30,7 @@ def wiener_filter(image, kernel_size=5):
     """
     filtered_image = np.zeros_like(image)
     for i in range(image.shape[2]):  # Iterate over R, G, B channels
-        filtered_image[..., i] = scipy.signal.wiener(image[..., i], mysize=kernel_size)
+        filtered_image[..., i] = scipy.signal.wiener(image[..., i], mysize=kernel_size, noise = noise_var)
     return filtered_image
 
 
@@ -41,8 +40,8 @@ def load_data():
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
-        root_dir = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/dataset',
+        csv_file = 'C:\\Users\\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
+        root_dir = 'C:\\Users\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
         transform = transforms.Compose([transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
@@ -89,6 +88,37 @@ def save_sample(inputs, targets, outputs, filtered_image, filename):
     plt.savefig(filename)
     plt.close()
 
+def save_sample_(inputs, targets, filtered_image, filename):
+    fig, ax = plt.subplots(1, 3, figsize = (16,3))
+    ax[0].imshow(inputs)
+    ax[0].set_title("Input")
+    ax[1].imshow(targets)
+    ax[1].set_title("Output")
+    ax[2].imshow(filtered_image)
+    ax[2].set_title("Wiener Filter")
+    plt.savefit(filename)
+    plt.close()
+
+# Test Wiener Filter only
+def test_wiener():
+    data = load_data()
+    eval_loader = DataLoader(data["val"], batch_size = config["dataloader"]["args"]["batch_size"], shuffle = False)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    for noise_var in [0.01, 0.05, 0.1]:
+        for window_size in [3, 5, 7, 9]:
+            number, ssim, psnr = 0, 0, 0
+            for samples in eval_loader:
+                filtered_image = wiener_filter(input)
+                number += 1
+                ssim += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
+                psnr += psnr(target, filtered_image)
+            print(f"noise var:{noise_var}, window size:{window_size}, ssim:{ssim/number}, psnr:{psnr/number}")
+
+
+
+
+
+
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description="ImageDesmoke")
     args.add_argument('-ckp', '--CHECKPOINT', default = None, type = str, required = True,
@@ -96,7 +126,8 @@ if __name__ == "__main__":
     args.add_argument('-sp', '--SAVE_PATH', default = None, type = str, required = True,
                       help = "Path to save the evaluation results")
     args = args.parse_args()
-    ckp = torch.load(args.CHECKPOINT)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    ckp = torch.load(args.CHECKPOINT, map_location = device)
 
 
     print(json.dumps(ckp["config"], indent = 4))
@@ -104,15 +135,15 @@ if __name__ == "__main__":
     
 
     # Load model later with:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = UNet(in_channels=3, out_channels=3).to(device)
     model.load_state_dict(ckp["state_dict"])
     model.eval()
 
     data = load_data()
     eval_loader = DataLoader(data["val"], batch_size = config["dataloader"]["args"]["batch_size"], shuffle = False)
-    number = 1
+
     with torch.no_grad():
+        number, ssim_u, ssim_w, psnr_u,psnr_w = 0, 0, 0, 0, 0
         for samples in eval_loader:
             input = samples["smoked_image"].to(device)
             target = samples["clear_image"].to(device)
@@ -128,32 +159,17 @@ if __name__ == "__main__":
             target = target[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             output = output[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             # wiener filter
-            filtered_image = wiener_filter(output)
+            filtered_image = wiener_filter(input, kernel_size = 5, noise_var = 0.1)
             save_sample(input, target, output, filtered_image, filename)
-
-            # print(target)
-            ssim_value = ssim(target, output, channel_axis = -1 ,data_range = 1)
-            ssim_value_ = ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
-            print(f"SSIM: {ssim_value},{ssim_value_}")
-
-            psnr_value = psnr(target, output)
-            psnr_value_ = psnr(target, filtered_image)
-            print(f"PSNR: {psnr_value} dB, {psnr_value_} dB")
-
-            # lab_image1 = color.rgb2lab(target)
-            # lab_image2 = color.rgb2lab(output)
-            # color_diff = deltaE_ciede2000(target, output)
-            # print(f"CIEDE2000: {color_diff}")
-
-            # # Compute statistics
-            # mean_diff = np.mean(color_diff)
-            # std_diff = np.std(color_diff)
-
-            # print(f"Mean CIEDE2000 Color Difference: {mean_diff}")
-            # print(f"Standard Deviation: {std_diff}")
-
-
             number += 1
+            ssim_u += ssim(target, output, channel_axis = -1 ,data_range = 1)
+            ssim_w += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
+            psnr_u += psnr(target, output)
+            psnr_w += psnr(target, filtered_image)
+        print(f"noise var:0.1 , window size: 5 , ssim wiener:{ssim_w/number},psnr wiener:{psnr_w/number}, ssim u-net:{ssim_u/number}, psnr u-net:{psnr_u/number}")
+
+
+    # test_wiener()
 
             
 
