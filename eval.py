@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import torch.optim as optim
 
 from base.base_model import UNet
+from model.model import UNetWithWiener
 from dataloader import dataloaders
 
 import json
@@ -17,7 +18,7 @@ from skimage import color
 import scipy.signal
 
 
-def wiener_filter(image, kernel_size=5, noise_var = 0.1, noise_var = 0.1):
+def wiener_filter(image, kernel_size=5, noise_var = 0.1):
     """
     Apply Wiener filter to each channel of the image.
 
@@ -40,8 +41,8 @@ def load_data():
     print("[INFO] loading the paired desmoke image dataset...")
 
     dataset = dataloaders.PairedSmokeImageDataset(
-        csv_file = 'C:\\Users\\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\paired_images.csv',
-        root_dir = 'C:\\Users\ycy99\\Documents\\NJIT\\research\\datasets\\DesmokeData-paired\\DesmokeData-main\\images\\dataset',
+        csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
+        root_dir = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/dataset',
         transform = transforms.Compose([transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
@@ -73,31 +74,20 @@ def visualize_sample(inputs, targets, outputs, filtered_image):
     ax[3].set_title("Wiener Filter")
     plt.show()
 
-def save_sample(inputs, targets, outputs, filtered_image, filename):
+def save_sample(inputs, targets, outputs, filename):
 
 
-    fig, ax = plt.subplots(1, 4, figsize=(16, 4))
+    fig, ax = plt.subplots(1, 3, figsize=(16, 3))
     ax[0].imshow(inputs)
     ax[0].set_title("Input")
     ax[1].imshow(targets)
     ax[1].set_title("Target")
     ax[2].imshow(outputs)
     ax[2].set_title("Output")
-    ax[3].imshow(filtered_image)
-    ax[3].set_title("Wiener Filter")
     plt.savefig(filename)
     plt.close()
 
-def save_sample_(inputs, targets, filtered_image, filename):
-    fig, ax = plt.subplots(1, 3, figsize = (16,3))
-    ax[0].imshow(inputs)
-    ax[0].set_title("Input")
-    ax[1].imshow(targets)
-    ax[1].set_title("Output")
-    ax[2].imshow(filtered_image)
-    ax[2].set_title("Wiener Filter")
-    plt.savefit(filename)
-    plt.close()
+
 
 # Test Wiener Filter only
 def test_wiener():
@@ -135,7 +125,10 @@ if __name__ == "__main__":
     
 
     # Load model later with:
-    model = UNet(in_channels=3, out_channels=3).to(device)
+    if config["arch"]["type"] == "UNetWithWiener":
+        model = UNetWithWiener(in_channels=3, out_channels=3).to(device)
+    else:
+        model = UNet(in_channels=3, out_channels=3).to(device)
     model.load_state_dict(ckp["state_dict"])
     model.eval()
 
@@ -153,21 +146,21 @@ if __name__ == "__main__":
 
 
 
-            print(f"Evaluation Metrics for sample {number}:")
+            # print(f"Evaluation Metrics for sample {number}:")
 
             input = input[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             target = target[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             output = output[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             # wiener filter
-            filtered_image = wiener_filter(input, kernel_size = 5, noise_var = 0.1)
-            save_sample(input, target, output, filtered_image, filename)
+            # filtered_image = wiener_filter(input, kernel_size = 5, noise_var = 0.1)
+            save_sample(input, target, output, filename)
             number += 1
             ssim_u += ssim(target, output, channel_axis = -1 ,data_range = 1)
-            ssim_w += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
+            # ssim_w += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
             psnr_u += psnr(target, output)
-            psnr_w += psnr(target, filtered_image)
-        print(f"noise var:0.1 , window size: 5 , ssim wiener:{ssim_w/number},psnr wiener:{psnr_w/number}, ssim u-net:{ssim_u/number}, psnr u-net:{psnr_u/number}")
-
+            # psnr_w += psnr(target, filtered_image)
+        # print(f"noise var:0.1 , window size: 5 , ssim wiener:{ssim_w/number},psnr wiener:{psnr_w/number}, ssim u-net:{ssim_u/number}, psnr u-net:{psnr_u/number}")
+        print(f"ssim:{ssim_u/number}, psnr:{psnr_u/number}")
 
     # test_wiener()
 

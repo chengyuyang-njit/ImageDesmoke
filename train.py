@@ -10,9 +10,16 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from utils.util import _save_checkpoint
+from torch.autograd import Variable
 
 from base.base_model import UNet
+from model.model import UNetWithWiener
+
 from dataloader import dataloaders
+
+import numpy as np
+
+from model.loss import SSIMLoss
 
 import json
 
@@ -45,9 +52,17 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("cuda available:", torch.cuda.is_available())
 
-    model = UNet(in_channels=3, out_channels=3).to(device)
+    if config['arch']['type'] == "UNetWithWiener":
+        model = UNetWithWiener(in_channels=3, out_channels=3).to(device)
+    else:
+        model = UNet(in_channels=3, out_channels=3).to(device)
+
     if config['loss'] == "MSELoss":
         criterion = torch.nn.MSELoss()
+    elif config['loss'] == "SSIMLoss":
+        criterion = SSIMLoss()
+
+
     if config['optimizer']['type'] == "Adam":
         optimizer = optim.Adam(
             model.parameters(), lr = config['optimizer']['args']['lr'], 
@@ -73,7 +88,21 @@ def train():
 
             optimizer.zero_grad()
             output = model(input)
-            loss = criterion(output, target)
+            # print(f"output shape:{np.shape(output)}")
+            # print(f"target shape:{np.shape(target)}")
+            # print(f"data range:{torch.max(target)}")
+
+            # target = Variable(target, requires_grad = False)
+            # output = Variable(output, requires_grad = True)
+            data_range = target.max().unsqueeze(0)
+            if config['loss'] == "SSIMLoss+MSELoss":
+                loss_mse = torch.nn.MSELoss()(target, output)
+                loss_ssim = SSIMLoss()(target, output, data_range)
+                loss = 0.5 * loss_mse + 0.5 * loss_ssim
+            elif config['loss'] == "SSIMLoss":
+                loss = SSIMLoss()(target, output, data_range)
+            elif config['loss'] == "MSELoss":
+                loss = torch.nn.MSELoss()(target, output)
             loss.backward()
             optimizer.step()
 
@@ -83,7 +112,7 @@ def train():
             epoch_loss += loss.item()
             # print(loss)
         total_loss += epoch_loss
-        print(f"Epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss / len(train_loader):.4f}")
+        print(f"Epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss  / len(train_loader):.4f}")
 
     return model, optimizer, total_loss
 
