@@ -1,7 +1,8 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+import torchvision.models as models
+import torchvision.transforms as transforms
 from monai.utils.type_conversion import convert_to_dst_type
 
 
@@ -113,3 +114,58 @@ class SSIMLoss(nn.Module):
         ssim_value = numerator / denom
         loss: torch.Tensor = 1 - ssim_value.mean()
         return loss
+
+class PerceptualLoss(nn.Module):
+    def __init__(self, layers=['relu3_3'], resize=True):
+        super(PerceptualLoss, self).__init__()
+        self.vgg = self._get_vgg_features()
+        self.selected_layers = layers
+        self.layer_mapping = {
+            'relu1_1': 0,
+            'relu1_2': 2,
+            'relu2_1': 5,
+            'relu2_2': 7,
+            'relu3_1': 10,
+            'relu3_2': 12,
+            'relu3_3': 14,
+            'relu4_1': 19,
+            'relu4_2': 21,
+            'relu5_1': 28
+        }
+        self.resize = resize
+        self.criterion = nn.MSELoss()
+
+        # Freeze VGG parameters
+        for param in self.vgg.parameters():
+            param.requires_grad = False
+
+    def _get_vgg_features(self):
+        vgg = models.vgg19(pretrained=True).features
+
+        # Replace in-place ReLUs
+        for i, layer in enumerate(vgg):
+            if isinstance(layer, nn.ReLU):
+                vgg[i] = nn.ReLU(inplace=False)
+        device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        vgg = vgg.to(device)
+        return vgg.eval()
+
+    def forward(self, input, target):
+        if self.resize:
+            input = nn.functional.interpolate(input, size=(224, 224), mode='bilinear', align_corners=False)
+            target = nn.functional.interpolate(target, size=(224, 224), mode='bilinear', align_corners=False)
+
+        loss = 0.0
+        x = input
+        y = target
+
+        for name, layer in self.vgg._modules.items():
+            x = layer(x)
+            y = layer(y)
+
+            for key in self.selected_layers:
+                if int(name) == self.layer_mapping[key]:
+                    loss = loss + self.criterion(x, y)
+
+        return loss
+

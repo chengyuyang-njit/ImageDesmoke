@@ -7,7 +7,8 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
-        
+        self.sigmoid = nn.Sigmoid()
+
         # Encoder (Downsampling)
         for feature in features:
             self.encoder.append(self._conv_block(in_channels, feature))
@@ -50,7 +51,7 @@ class UNet(nn.Module):
             x = torch.cat((skip_connection, x), dim=1)
             x = self.decoder[idx + 1](x)
         
-        return self.final_conv(x)
+        return self.sigmoid(self.final_conv(x))
     
     def _conv_block(self, in_channels, out_channels):
         return nn.Sequential(

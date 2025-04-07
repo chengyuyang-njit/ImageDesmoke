@@ -20,6 +20,7 @@ from dataloader import dataloaders
 import numpy as np
 
 from model.loss import SSIMLoss
+from model.loss import PerceptualLoss
 
 import json
 
@@ -57,11 +58,6 @@ def train():
     else:
         model = UNet(in_channels=3, out_channels=3).to(device)
 
-    if config['loss'] == "MSELoss":
-        criterion = torch.nn.MSELoss()
-    elif config['loss'] == "SSIMLoss":
-        criterion = SSIMLoss()
-
 
     if config['optimizer']['type'] == "Adam":
         optimizer = optim.Adam(
@@ -77,10 +73,20 @@ def train():
     train_loader = DataLoader(
         data["train"], batch_size = config['dataloader']['args']['batch_size'], 
                               shuffle = config['dataloader']['args']['shuffle'])
+    
+    loss_mse = torch.nn.MSELoss()
+    loss_ssim = SSIMLoss()
+    loss_perceptual = PerceptualLoss()
+
+
+
     total_loss = 0
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
+        epoch_mse_loss = 0
+        epoch_ssim_loss = 0
+        epoch_perc_loss = 0
 
         for samples in train_loader:
             input = samples["smoked_image"].to(device)
@@ -95,14 +101,19 @@ def train():
             # target = Variable(target, requires_grad = False)
             # output = Variable(output, requires_grad = True)
             data_range = target.max().unsqueeze(0)
-            if config['loss'] == "SSIMLoss+MSELoss":
-                loss_mse = torch.nn.MSELoss()(target, output)
-                loss_ssim = SSIMLoss()(target, output, data_range)
-                loss = 0.5 * loss_mse + 0.5 * loss_ssim
-            elif config['loss'] == "SSIMLoss":
-                loss = SSIMLoss()(target, output, data_range)
-            elif config['loss'] == "MSELoss":
-                loss = torch.nn.MSELoss()(target, output)
+            if config['loss'] == "MSELoss":
+                mse_loss = loss_mse(target, output)
+                loss = mse_loss
+            elif config['loss'] == "MSELoss+SSIMLoss":
+                mse_loss = loss_mse(target, output)
+                ssim_loss = loss_ssim(target, output, data_range)
+                loss = 0.5 * mse_loss + 0.5 * ssim_loss
+            elif config['loss'] == "MSELoss+SSIMLoss+PerceptualLoss":
+                mse_loss = loss_mse(target, output)
+                ssim_loss = loss_ssim(target, output, data_range)
+                perc_loss = loss_perceptual(output, target)
+                loss = mse_loss / 3.0 + ssim_loss / 3.0 + perc_loss / 3.0
+
             loss.backward()
             optimizer.step()
 
@@ -110,9 +121,18 @@ def train():
                 scheduler.step()
 
             epoch_loss += loss.item()
-            # print(loss)
+            if config['loss'] == "MSELoss":
+                epoch_mse_loss += mse_loss.item()
+            elif config['loss'] == "MSELoss+SSIMLoss":
+                epoch_mse_loss += mse_loss.item()
+                epoch_ssim_loss += ssim_loss.item()
+            elif config['loss'] == "MSELoss+SSIMLoss+PerceptualLoss":
+                epoch_mse_loss += mse_loss.item()
+                epoch_ssim_loss += ssim_loss.item()
+                epoch_perc_loss += perc_loss.item()
+
         total_loss += epoch_loss
-        print(f"Epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss  / len(train_loader):.4f}")
+        print(f"Epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss/len(train_loader):.4f}, mse_loss:{epoch_mse_loss/len(train_loader):.4f}, ssim_loss:{epoch_ssim_loss/len(train_loader):.4f}, perc_loss:{epoch_perc_loss/len(train_loader):.4f}")
 
     return model, optimizer, total_loss
 
@@ -141,7 +161,8 @@ if __name__ == "__main__":
         config = json.load(f)
     # print(config['dataloader']['args']['batch_size'])
     trained_model, optimizer_used, total_loss = train()
-    _save_checkpoint(trained_model, optimizer_used, total_loss, config, checkpoint_path)
+    name = config['arch']['type'] + '-' + config['loss']
+    _save_checkpoint(trained_model, optimizer_used, total_loss, config, checkpoint_path, name)
     
 
 

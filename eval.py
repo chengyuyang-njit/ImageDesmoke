@@ -1,5 +1,6 @@
 import argparse
 import torch
+import cv2
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchvision import transforms
@@ -16,7 +17,7 @@ import numpy as np
 from skimage.metrics import structural_similarity as ssim, peak_signal_noise_ratio as psnr
 from skimage import color
 import scipy.signal
-
+from scipy.io import savemat
 
 def wiener_filter(image, kernel_size=5, noise_var = 0.1):
     """
@@ -136,8 +137,11 @@ if __name__ == "__main__":
     eval_loader = DataLoader(data["val"], batch_size = config["dataloader"]["args"]["batch_size"], shuffle = False)
 
     with torch.no_grad():
-        number, ssim_u, ssim_w, psnr_u,psnr_w = 0, 0, 0, 0, 0
+        number, ssim_total, psnr_total, mse_total = 0, 0, 0, 0
         for samples in eval_loader:
+            # if number<=39:
+            #     number += 1
+            #     continue
             input = samples["smoked_image"].to(device)
             target = samples["clear_image"].to(device)
             output = model(input)
@@ -151,16 +155,28 @@ if __name__ == "__main__":
             input = input[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             target = target[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
             output = output[0].cpu().numpy().transpose(1, 2, 0).astype(np.float32)
-            # wiener filter
+            # print(f"input:{input}, min:{np.min(input)}, max:{np.max(input)}")
+            # print(f"target:{target}, min:{np.min(input)}, max:{np.max(input)}")
+            # print(f"output:{output}, min:{np.min(output)}, max:{np.max(output)}")
             # filtered_image = wiener_filter(input, kernel_size = 5, noise_var = 0.1)
             save_sample(input, target, output, filename)
+            savemat(f"/mmfs1/project/cliu/cy322/projects/ImageDesmoke/saved/evaluation/u-net-w-500-1e-4-mse/targets_mat/target{number}.mat",{"image":target})
+            savemat(f"/mmfs1/project/cliu/cy322/projects/ImageDesmoke/saved/evaluation/u-net-w-500-1e-4-mse/outputs_mat/output{number}.mat",{"image":output})
             number += 1
-            ssim_u += ssim(target, output, channel_axis = -1 ,data_range = 1)
+            # print(target)
+            # break
+            # savemat("target.mat",{"image":cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)})
+            # savemat("output.mat",{"image":cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)})
+            ssim_total += ssim(cv2.cvtColor(output, cv2.COLOR_BGR2GRAY), 
+                               cv2.cvtColor(target, cv2.COLOR_BGR2GRAY),
+                                            data_range = 1, win_size = 3, gaussian_weights=False, use_sample_covariance=False)
             # ssim_w += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
-            psnr_u += psnr(target, output)
+            # break
+            psnr_total += psnr(target, output)
             # psnr_w += psnr(target, filtered_image)
+            mse_total += np.mean((output-target) ** 2)
         # print(f"noise var:0.1 , window size: 5 , ssim wiener:{ssim_w/number},psnr wiener:{psnr_w/number}, ssim u-net:{ssim_u/number}, psnr u-net:{psnr_u/number}")
-        print(f"ssim:{ssim_u/number}, psnr:{psnr_u/number}")
+        print(f"ssim:{ssim_total/number}, psnr:{psnr_total/number}, mse:{mse_total/number}")
 
     # test_wiener()
 

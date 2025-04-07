@@ -55,10 +55,15 @@ class LearnableWienerLayer(nn.Module):
 class UNetWithWiener(nn.Module):
     def __init__(self, in_channels=3, out_channels=3):
         super(UNetWithWiener, self).__init__()
-        self.wiener = LearnableWienerLayer(in_channels)
+        self.wiener = LearnableWienerLayer(out_channels)
 
         self.unet = UNet(in_channels=in_channels, out_channels=out_channels)
 
+        # self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
         x = self.wiener(x)
-        return self.unet(x)
+        x = self.unet(x)
+        # x = self.unet(x)
+        # x = self.wiener(x)
+        return x
