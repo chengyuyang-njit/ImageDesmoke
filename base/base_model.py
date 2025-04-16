@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from torchsummary import summary
 
 class UNet(nn.Module):
     def __init__(self, in_channels=3, out_channels=3, features=[64, 128, 256, 512]):
@@ -62,3 +63,8 @@ class UNet(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
+    
+
+model = UNet()
+model = model.cuda()
+summary(model, input_size = (3, 700, 350))

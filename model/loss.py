@@ -4,6 +4,10 @@ from torch import nn
 import torchvision.models as models
 import torchvision.transforms as transforms
 from monai.utils.type_conversion import convert_to_dst_type
+from torchvision.models import vgg19, VGG19_Weights
+
+
+
 
 
 class SSIMLoss(nn.Module):
@@ -140,7 +144,8 @@ class PerceptualLoss(nn.Module):
             param.requires_grad = False
 
     def _get_vgg_features(self):
-        vgg = models.vgg19(pretrained=True).features
+        weights = VGG19_Weights.DEFAULT
+        vgg = models.vgg19(weights=weights).features
 
         # Replace in-place ReLUs
         for i, layer in enumerate(vgg):
@@ -168,4 +173,3 @@ class PerceptualLoss(nn.Module):
                     loss = loss + self.criterion(x, y)
 
         return loss
-

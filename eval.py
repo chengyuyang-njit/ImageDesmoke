@@ -18,6 +18,7 @@ from skimage.metrics import structural_similarity as ssim, peak_signal_noise_rat
 from skimage import color
 import scipy.signal
 from scipy.io import savemat
+from pyciede2000 import ciede2000
 
 def wiener_filter(image, kernel_size=5, noise_var = 0.1):
     """
@@ -44,7 +45,7 @@ def load_data():
     dataset = dataloaders.PairedSmokeImageDataset(
         csv_file = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/paired_images.csv',
         root_dir = '/mmfs1/project/cliu/cy322/datasets/DesmokeData-main/images/dataset',
-        transform = transforms.Compose([transforms.ToTensor()]))
+        transform = transforms.Compose([transforms.Resize((350,700)),transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * config["dataloader"]["args"]["train_split"]) + 1
     num_val_samples = int(len(dataset) * config["dataloader"]["args"]["validation_split"])
@@ -90,25 +91,6 @@ def save_sample(inputs, targets, outputs, filename):
 
 
 
-# Test Wiener Filter only
-def test_wiener():
-    data = load_data()
-    eval_loader = DataLoader(data["val"], batch_size = config["dataloader"]["args"]["batch_size"], shuffle = False)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    for noise_var in [0.01, 0.05, 0.1]:
-        for window_size in [3, 5, 7, 9]:
-            number, ssim, psnr = 0, 0, 0
-            for samples in eval_loader:
-                filtered_image = wiener_filter(input)
-                number += 1
-                ssim += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
-                psnr += psnr(target, filtered_image)
-            print(f"noise var:{noise_var}, window size:{window_size}, ssim:{ssim/number}, psnr:{psnr/number}")
-
-
-
-
-
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description="ImageDesmoke")
@@ -134,19 +116,17 @@ if __name__ == "__main__":
     model.eval()
 
     data = load_data()
-    eval_loader = DataLoader(data["val"], batch_size = config["dataloader"]["args"]["batch_size"], shuffle = False)
+    eval_loader = DataLoader(data["val"], batch_size = 1, shuffle = False)
 
     with torch.no_grad():
-        number, ssim_total, psnr_total, mse_total = 0, 0, 0, 0
+        number, ssim_total, psnr_total, mse_total, ciede_total = 0, 0, 0, 0, 0
         for samples in eval_loader:
-            # if number<=39:
-            #     number += 1
-            #     continue
+
             input = samples["smoked_image"].to(device)
             target = samples["clear_image"].to(device)
             output = model(input)
             # print(input.shape)
-            filename = args.SAVE_PATH + "/" + str(number) + ".png"
+            filename = args.SAVE_PATH + "/outputs/" + str(number) + ".png"
 
 
 
@@ -158,10 +138,12 @@ if __name__ == "__main__":
             # print(f"input:{input}, min:{np.min(input)}, max:{np.max(input)}")
             # print(f"target:{target}, min:{np.min(input)}, max:{np.max(input)}")
             # print(f"output:{output}, min:{np.min(output)}, max:{np.max(output)}")
-            # filtered_image = wiener_filter(input, kernel_size = 5, noise_var = 0.1)
-            save_sample(input, target, output, filename)
-            savemat(f"/mmfs1/project/cliu/cy322/projects/ImageDesmoke/saved/evaluation/u-net-w-500-1e-4-mse/targets_mat/target{number}.mat",{"image":target})
-            savemat(f"/mmfs1/project/cliu/cy322/projects/ImageDesmoke/saved/evaluation/u-net-w-500-1e-4-mse/outputs_mat/output{number}.mat",{"image":output})
+            save_sample(input, target, output, f"{args.SAVE_PATH}/compare/compare{number}.png")
+            cv2.imwrite(filename, cv2.cvtColor((output*255).astype(np.uint8),cv2.COLOR_RGB2BGR))
+            cv2.imwrite(args.SAVE_PATH + "/inputs/" + str(number) + ".png", cv2.cvtColor((input*255).astype(np.uint8),cv2.COLOR_RGB2BGR))
+            cv2.imwrite(args.SAVE_PATH + "/targets/" + str(number) + ".png", cv2.cvtColor((target*255).astype(np.uint8),cv2.COLOR_RGB2BGR))
+            savemat(f"{args.SAVE_PATH}/targets_mat/target{number}.mat",{"image":target})
+            savemat(f"{args.SAVE_PATH}/outputs_mat/output{number}.mat",{"image":output})
             number += 1
             # print(target)
             # break
@@ -170,28 +152,17 @@ if __name__ == "__main__":
             ssim_total += ssim(cv2.cvtColor(output, cv2.COLOR_BGR2GRAY), 
                                cv2.cvtColor(target, cv2.COLOR_BGR2GRAY),
                                             data_range = 1, win_size = 3, gaussian_weights=False, use_sample_covariance=False)
-            # ssim_w += ssim(target, filtered_image, channel_axis = -1 ,data_range = 1)
-            # break
+
             psnr_total += psnr(target, output)
-            # psnr_w += psnr(target, filtered_image)
+
             mse_total += np.mean((output-target) ** 2)
-        # print(f"noise var:0.1 , window size: 5 , ssim wiener:{ssim_w/number},psnr wiener:{psnr_w/number}, ssim u-net:{ssim_u/number}, psnr u-net:{psnr_u/number}")
+
+        
         print(f"ssim:{ssim_total/number}, psnr:{psnr_total/number}, mse:{mse_total/number}")
 
-    # test_wiener()
-
-            
 
 
-# # Get a sample batch
-# samples = next(iter(eval_loader))
-# input = samples["smoked_image"].to(device)
-# target = samples["clear_image"].to(device)
-# with torch.no_grad():
-#     output = model(input)
 
-# Visualize
-# visualize_sample(input[0], target[0], output[0])
 
 
 

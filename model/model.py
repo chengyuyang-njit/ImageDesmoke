@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from torchsummary import summary
 from base.base_model import UNet
 
 class LearnableWienerLayer(nn.Module):
-    def __init__(self, channels, kernel_size=5):
+    def __init__(self, channels=3, kernel_size=5):
         super(LearnableWienerLayer, self).__init__()
         self.kernel_size = kernel_size
         self.padding = kernel_size // 2
@@ -67,3 +67,9 @@ class UNetWithWiener(nn.Module):
         # x = self.unet(x)
         # x = self.wiener(x)
         return x
+    
+
+# model = LearnableWienerLayer()
+# model = model.cuda()
+# summary(model, input_size = (3, 700, 350))
+

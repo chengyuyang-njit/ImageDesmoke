@@ -31,7 +31,9 @@ def load_data():
     dataset = dataloaders.PairedSmokeImageDataset(
         csv_file = config['dataloader']['args']['csv_dir'],
         root_dir = config['dataloader']['args']['data_dir'],
-        transform =  transforms.Compose([transforms.ToTensor()]))
+        transform =  transforms.Compose([
+            transforms.Resize((350,700)),
+            transforms.ToTensor()]))
 
     num_train_samples = int(len(dataset) * 
                             config['dataloader']['args']['train_split']) + 1
@@ -112,8 +114,10 @@ def train():
                 mse_loss = loss_mse(target, output)
                 ssim_loss = loss_ssim(target, output, data_range)
                 perc_loss = loss_perceptual(output, target)
-                loss = mse_loss / 3.0 + ssim_loss / 3.0 + perc_loss / 3.0
-
+                alpha = config['alpha']
+                beta = config['beta']
+                gamma = config['gamma']
+                loss = mse_loss * alpha + ssim_loss * beta + perc_loss * gamma
             loss.backward()
             optimizer.step()
 
